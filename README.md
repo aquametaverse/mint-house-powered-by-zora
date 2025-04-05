@@ -1,7 +1,6 @@
 # Mint House Aqua - BY AQUAMetaverse  🏄‍♀️ Powered by Zora 🎨💰
 
-# Genral public version lower - skip to that if you dont understand the jardgon. Cheers!
-
+# Genral public version Follows. In case you dont understand the jargon ;)
 **Your Not-So-Dry NFT Onramp for the Aqua Metaverse 🌊 - Making it suck less for watercraft creators, coastal artists, and beach bums to mint their gear.**
 
 Alright, listen up Aqua Metaverse citizens and salty dogs! You know what's harder than paddling into a headwind? Getting that rad surfboard shaper from down the coast, or the artist who paints insane seascape murals, or that musician playing seaside gigs, to actually mint their stuff as NFTs for your virtual beach house. They're busy making cool things, not wrangling crypto wallets.
