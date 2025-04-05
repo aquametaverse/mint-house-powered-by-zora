@@ -45,7 +45,7 @@ _Found a leak? Got ideas? Want to join the flotilla? Contributions welcome!_
 
 > **Mint House Aqua is a web platform designed to onboard real-world artisans and niche creators – initially focusing on watercraft shapers, coastal artists, and musicians – into the Web3 economy. Leveraging Zora Protocol, our solution simplifies collaborative NFT minting, management, and sales, featuring automated on-chain revenue splitting for creators involved with the Aqua Metaverse and beyond.**
 
-*(This project is built upon the `mint-house-powered-by-zora` codebase developed during the [Name of Hackathon, e.g., ETHGlobal XYZ] hackathon.)*
+*(This project is built upon the `mint-house-powered-by-zora` codebase developed during the AKINDO WaveHack hackathon.)*
 
 ## The Problem
 
