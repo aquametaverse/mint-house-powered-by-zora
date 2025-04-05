@@ -63,4 +63,5 @@ Mint House Aqua provides a streamlined, user-friendly web portal specifically ad
 
 ## Target Market & Impact
 
-Our primary market includes global communities of watercraft shapers, builders, artists decorating these items, landscape artists inspired by water zones, and musicians associated with coastal lifestyles. This represents a passionate, underserved niche market eager for new monetization avenues. By targeting the Aqua Metaverse community initially, we establish a focused user
+Our primary market includes global communities of watercraft shapers, builders, artists decorating these items, landscape artists inspired by water zones, and musicians associated with coastal lifestyles. This represents a passionate, underserved niche market eager for new monetization avenues. By targeting the Aqua Metaverse community initially, we establish a focused user base that expands to the general Web3 and Crypto audiences with ease.
+
