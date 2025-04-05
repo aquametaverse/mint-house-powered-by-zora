@@ -1,0 +1,163 @@
+Testing a full-stack Web3 application like this involves several stages:
+
+1. Environment Setup (Prerequisites)
+
+Before any testing, ensure your development environment is correctly configured:
+
+Node.js & Dependencies: Make sure Node.js is installed and run npm install (or yarn install) to get all project dependencies.
+
+Database:
+
+Install and run MongoDB locally OR set up a free tier on MongoDB Atlas.
+
+Configure your database connection string in a .env file (e.g., MONGODB_URI=mongodb://localhost:27017/minthouse_test).
+
+IPFS:
+
+Option A (Local Node): Install and run Kubo (go-ipfs). Start the daemon (ipfs daemon). Configure IPFS_API_URL=http://127.0.0.1:5001/api/v0 in your .env.
+
+Option B (Pinning Service): Sign up for Pinata or Infura IPFS. Get API keys and configure them in your .env file (e.g., PINATA_API_KEY, PINATA_SECRET_KEY). Make sure your ipfsService.js uses the correct configuration.
+
+Blockchain Testnet:
+
+Choose Network: Select a Zora-supported testnet (e.g., Goerli, Sepolia, Base Goerli, Zora Goerli).
+
+RPC URL: Get an RPC endpoint URL for your chosen testnet (e.g., from Alchemy, Infura, QuickNode). Set RPC_URL in .env.
+
+Wallet: Set up MetaMask or another browser wallet. Switch it to your chosen testnet.
+
+Test ETH: Get free test ETH for your wallet address from a public faucet for that network.
+
+Zora Contracts: Find the addresses for the specific Zora ERC1155Creator contract (or the one you deployed) and potentially SplitMain on your chosen testnet. Configure these in your .env or zoraAddresses.js utility. Set CHAIN_ID in .env.
+
+Environment Variables: Create a .env file and populate all required variables (DB URI, IPFS config, RPC URL, Zora addresses, SESSION_SECRET, PORT, etc.).
+
+Run the Application: Start your server, usually with npm run dev (if using nodemon for auto-restarts).
+
+2. Manual Testing (Core User Flows)
+
+This is essential for verifying the user experience and basic functionality. Use your browser and developer tools (especially the Network tab and Console).
+
+Navigate & View:
+
+Go to the /mint/create page. Does the form render correctly based on your Pug template?
+
+Create Draft (Form Validation):
+
+Try submitting without filling required fields (title, file). Does validation prevent submission and show errors?
+
+Enter valid data: title, description, comma-separated tags.
+
+Test File Upload: Select a test image/video/audio file.
+
+Test Dynamic Splits:
+
+Click "+ Add Collaborator Split". Does a new row appear?
+
+Add multiple rows. Enter valid addresses and percentages.
+
+Try removing a row using the '✖' button.
+
+Enter invalid data (non-address text, percentages > 100, total != 100%). Click "Save Draft". Does the frontend JS validation catch it and prevent submission? Does the backend validation also catch it if JS fails?
+
+Enter valid splits summing to 100%.
+
+Test Commission: Enter a valid referrer address.
+
+Submit: Click "Save Draft".
+
+Verify: Are you redirected to the draft edit page (/mint/drafts/:id)? Do you see a success message? Check your MongoDB database – is there a new document in the creations collection with the correct data and status: 'draft'? Is the temporary file saved correctly in your temp_uploads directory (if using that strategy)?
+
+Edit Draft:
+
+Navigate back to the draft page (/mint/drafts/:id). Are all fields pre-filled correctly from the database?
+
+Change the title or description.
+
+Add or remove a tag.
+
+Modify the splits (add/remove/change percentages). Ensure validation still works.
+
+Optionally, upload a new file to replace the old one.
+
+Click "Update Draft".
+
+Verify: Are you redirected back (or stay on the page with a success message)? Check the database – are the fields updated? If you uploaded a new file, was the old temp file removed and the new one saved?
+
+Prepare for Minting:
+
+On the draft edit page, click the "Prepare for Minting..." button.
+
+Observe: Check your backend console logs. Do you see messages about IPFS uploads starting/succeeding?
+
+Verify: Are you redirected to the /mint/confirm-mint/:id page? Check the database – has the status changed to pending_mint? Are fileCid, metadataCid, and metadataUri populated? Was the temporary file deleted?
+
+Confirm Mint Page:
+
+Does the page display the correct title, description, tags?
+
+Does the media preview load correctly from the IPFS gateway link? (IPFS gateways can sometimes be slow).
+
+Are the Zora contract address, metadata URI, and estimated Zora fee displayed?
+
+Test Gas Feature: Does the "Current Gas" section update periodically? (Check Network tab in dev tools for calls to /mint/gas-estimate). Does the "Est. Total Cost" update accordingly?
+
+Execute Mint (Requires Testnet Wallet):
+
+Ensure your MetaMask is connected, on the correct testnet, and has test ETH.
+
+Click the "Mint Now" button.
+
+Wallet Interaction: Does MetaMask (or your wallet) pop up asking for confirmation? Does it show the correct Zora contract address and the value matching the Zora Network Fee?
+
+Approve Transaction: Click "Confirm" in your wallet.
+
+Observe Frontend: Do you see status messages ("Transaction submitted...", "Waiting for confirmation...")?
+
+Monitor Blockchain: Copy the transaction hash from the status message or wallet and view it on a testnet block explorer (e.g., Goerli Etherscan). Wait for it to confirm.
+
+Verify Success: Once confirmed, does the frontend show a success message, potentially with the Token ID? Are you redirected (e.g., to a dashboard)? Check the database – has the status changed to minted? Are transactionHash and tokenId (if parsed) saved?
+
+Verify NFT: Check the NFT on a Zora testnet explorer or OpenSea testnet. Does it show the correct metadata, image, and owner?
+
+Test Error Handling:
+
+Reject the transaction in MetaMask. Does the frontend show an appropriate error?
+
+Try minting with insufficient test ETH.
+
+Simulate backend errors (e.g., stop your IPFS node temporarily, provide an invalid Zora contract address) and see how the frontend/backend handle it.
+
+3. Backend Testing (Automated)
+
+Use frameworks like Jest or Mocha/Chai/Supertest.
+
+Unit Tests: Test individual functions in isolation (e.g., test the split percentage validation logic in the Mongoose model, test the ipfsService.uploadToIPFS function by mocking the IPFS client, test zoraService functions by mocking ethers.js calls).
+
+Integration Tests: Test route handlers. Use Supertest to send HTTP requests to your /mint/* routes. Use mongodb-memory-server to spin up an in-memory database for tests. Assert response codes, response bodies, and database state changes. Mock calls to external services like IPFS and Zora blockchain interactions.
+
+4. Frontend Testing (Automated)
+
+E2E Tests (Recommended): Use tools like Cypress or Playwright.
+
+Write scripts that automate the entire "Manual Testing" flow described above in a real browser.
+
+These tests can fill forms, click buttons, upload files, check displayed text, and even potentially interact with a mocked wallet or a real wallet via browser extensions (though wallet interaction can be complex in E2E tests).
+
+Key Focus Areas for Testing:
+
+Data Persistence: Ensure data is saved correctly to MongoDB at each stage (draft, pending, minted).
+
+Validation: Test all input validation thoroughly (frontend and backend).
+
+File Handling: Ensure files are uploaded, stored temporarily (if applicable), uploaded to IPFS, and cleaned up correctly.
+
+IPFS Integration: Verify CIDs are generated and metadata/files are accessible via IPFS gateways.
+
+Zora Interaction: Verify correct parameters are prepared, fees are estimated (even if placeholder initially), and the transaction call is constructed properly. Test the success/failure recording.
+
+Splits/Commission Logic: Ensure the data is captured correctly and passed for potential use in Zora calls (the actual on-chain split execution happens via Zora contracts, but your app needs to configure it correctly).
+
+Gas Fee Display: Check that the polling works and updates the UI.
+
+Start with manual testing to get a feel for the flow, then progressively add automated backend and frontend tests to catch regressions and ensure reliability. Good luck!
