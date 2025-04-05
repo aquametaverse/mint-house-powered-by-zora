@@ -1,0 +1,265 @@
+Assumptions:
+
+We have a working Node.js/Express setup.
+MongoDB and Mongoose are installed and configured.
+multer, ethers, @zoralabs/zora-sdk, and an IPFS client library (ipfs-http-client or similar) are installed.
+User authentication is handled elsewhere (standard web2 and web3 login).
+
+Focus on  minting ERC1155 via ERC1155Creator
+
+
+1. Mongoose Model (models/Creation.js)
+
+2. Express Route (routes/mintRoutes.js)
+
+3. Controller Logic (controllers/mintController.js)
+
+4. IPFS Service (services/ipfsService.js)
+
+5. Zora Service (services/zoraService.js)
+
+const ethers = require('ethers');
+const { Zora1155CreatorABI } = require('../abis/Zora1155CreatorABI'); // Load your ABI
+const { getContractAddresses } = require('../utils/zoraAddresses'); // Your address lookup util
+
+// --- Setup Provider ---
+// Use different providers for read operations vs needing a signer
+const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+
+// --- Contract Address Logic ---
+function getERC1155CreatorAddress(chainId) {
+    const addresses = getContractAddresses(chainId); // Your lookup function
+    if (!addresses || !addresses.ERC1155_CREATOR_IMPLEMENTATION) { // Example address name
+         throw new Error(`No ERC1155 Creator address configured for chain ID ${chainId}`);
+    }
+    // This might return a specific collection address deployed via Zora, or a factory?
+    // Adjust based on how you manage Zora collections
+    return addresses.YOUR_DEPLOYED_ERC1155_COLLECTION_ADDRESS; // ** Needs specific logic **
+}
+
+// --- Fee Estimation (Example - check Zora SDK/Contract for actual method) ---
+async function estimateMintFee(contractAddress, mintParams) {
+    // This highly depends on the contract version.
+    // May need to call `mintFee()` on the contract, or calculate based on ProtocolRewards settings.
+    // The Zora SDK often simplifies this significantly.
+    console.warn("Using placeholder mint fee. Implement actual Zora fee calculation!");
+    // ** Placeholder ** - Replace with actual call to Zora contract or SDK
+    // const contract = new ethers.Contract(contractAddress, Zora1155CreatorABI, provider);
+    // const fee = await contract.mintFee(); // Or similar function
+    // return fee;
+    return ethers.utils.parseEther("0.000777"); // ** EXAMPLE VALUE ONLY **
+}
+
+// --- ABI Snippets (for frontend) ---
+function getMintFunctionAbi(functionName) {
+    // Return only the necessary ABI fragment for the specific function
+    // This avoids sending the whole large ABI to the frontend
+    const fullAbi = Zora1155CreatorABI; // Your loaded ABI
+    const functionAbi = fullAbi.find(item => item.name === functionName && item.type === 'function');
+    if (!functionAbi) throw new Error(`ABI for function ${functionName} not found.`);
+    return functionAbi;
+    // Example Name mapping:
+    // if (functionName === 'ERC1155_MINT_WITH_REWARDS') return /* ABI snippet for mintWithRewards */;
+}
+
+
+// --- Split Logic (Conceptual - Very Complex) ---
+async function findOrCreateSplit(creatorSplits) {
+    // 1. Check if an identical split already exists (query Zora Split Mainnet/Registry?)
+    // 2. If not, prepare split parameters (payees, shares)
+    // 3. Interact with Zora's Split contract factory/deployer to create a new Split wallet
+    // 4. Return the address of the new or existing Split contract
+    console.warn("findOrCreateSplit function needs full implementation using Zora Split contracts/SDK.");
+    return "0xSPLIT_CONTRACT_ADDRESS_PLACEHOLDER"; // Placeholder
+}
+
+
+module.exports = {
+    getERC1155CreatorAddress,
+    estimateMintFee,
+    getMintFunctionAbi,
+    findOrCreateSplit,
+};
+
+
+6. Frontend Snippet (public/js/mint.js - Conceptual)
+
+// --- Elements ---
+const mintButton = document.getElementById('mint-now-button');
+const gasInfoElement = document.getElementById('gas-info');
+const estimatedCostElement = document.getElementById('estimated-cost');
+// Assume hidden fields or data attributes hold mint data received from backend
+// const mintData = JSON.parse(document.getElementById('mint-data').textContent);
+
+let currentGasPriceGwei = null; // Store latest gas price
+
+// --- Gas Price Polling ---
+async function fetchGasPrice() {
+    try {
+        const response = await fetch('/mint/gas-estimate');
+        if (!response.ok) throw new Error('Failed to fetch gas');
+        const data = await response.json();
+
+        if (data.success) {
+            // Use EIP-1559 fees if available, otherwise fallback to legacy gasPrice
+            let displayPrice = data.maxFeePerGas ? parseFloat(data.maxFeePerGas) : (data.gasPrice ? parseFloat(data.gasPrice) : null);
+            currentGasPriceGwei = displayPrice; // Store for potential logic
+
+            if (displayPrice !== null) {
+                gasInfoElement.textContent = `Current Gas: ~${displayPrice.toFixed(2)} Gwei`;
+                updateEstimatedCost(displayPrice); // Update cost estimate
+            } else {
+                 gasInfoElement.textContent = 'Gas price unavailable.';
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching gas:', error);
+        gasInfoElement.textContent = 'Error fetching gas.';
+    }
+}
+
+function updateEstimatedCost(gasPriceGwei) {
+    if (!mintData || !mintData.mintFeeWei) return; // Ensure mint data is loaded
+
+    // VERY ROUGH ESTIMATE - Needs actual gas limit for the specific Zora mint function
+    const estimatedGasLimit = 300000; // ** PLACEHOLDER - GET BETTER ESTIMATE **
+    const gasCostWei = BigInt(Math.ceil(gasPriceGwei * 1e9)) * BigInt(estimatedGasLimit); // Gwei to Wei
+    const totalCostWei = BigInt(mintData.mintFeeWei) + gasCostWei;
+    estimatedCostElement.textContent = `Est. Total Cost: ~${ethers.utils.formatEther(totalCostWei)} ETH`;
+}
+
+// --- Minting Logic ---
+async function handleMint() {
+    if (!window.ethereum) {
+        alert('Wallet not detected!');
+        return;
+    }
+    if (!mintData) {
+        alert('Minting data not loaded correctly.');
+        return;
+    }
+
+    mintButton.disabled = true;
+    mintButton.textContent = 'Minting...';
+
+    try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []); // Ensure wallet connected
+        const signer = provider.getSigner();
+        const userAddress = await signer.getAddress();
+
+        // Get Contract Instance using ABI fragment from backend
+        const zoraContract = new ethers.Contract(
+            mintData.targetContractAddress,
+            [mintData.mintFunctionAbi], // Only the single function ABI needed
+            signer
+        );
+
+        // Prepare arguments for the specific Zora function based on mintData.mintParams
+        // Example for a hypothetical mintWithRewards:
+        const args = [
+            mintData.mintParams.recipient,
+            mintData.mintParams.quantity,
+            mintData.mintParams.metadataURI, // Might be different order, check ABI
+            "Minted from Mint House Aqua!", // Optional Comment
+            mintData.mintParams.mintReferral
+            // Add other params like tokenId if needed based on ABI
+        ];
+
+        const txOptions = {
+            value: mintData.mintFeeWei // The required fee passed as msg.value
+            // We could add manual gas limits here based on polling, but letting wallet estimate is often better
+            // gasLimit: ethers.BigNumber.from(SOME_GAS_LIMIT),
+            // maxFeePerGas: ethers.utils.parseUnits(targetMaxFeeGwei.toString(), 'gwei'), // If implementing target gas
+            // maxPriorityFeePerGas: ethers.utils.parseUnits(targetPriorityFeeGwei.toString(), 'gwei'),
+        };
+
+        console.log('Initiating mint transaction with options:', args, txOptions);
+
+        // Get function name from ABI to call it dynamically
+        const mintFunctionName = mintData.mintFunctionAbi.name;
+        const tx = await zoraContract[mintFunctionName](...args, txOptions);
+
+        console.log(`Transaction sent: ${tx.hash}`);
+        alert(`Transaction submitted! Hash: ${tx.hash}. Waiting for confirmation...`);
+
+        const receipt = await tx.wait(1); // Wait for 1 confirmation
+        console.log('Transaction confirmed:', receipt);
+
+        // Extract Token ID (highly dependent on Zora contract events)
+        let mintedTokenId = null;
+        const transferEventTopic = ethers.utils.id("TransferSingle(address,address,address,uint256,uint256)"); // ERC1155
+        const transferEvent = receipt.logs.find(log => log.topics[0] === transferEventTopic);
+        if (transferEvent) {
+             const decodedLog = zoraContract.interface.parseLog(transferEvent);
+             mintedTokenId = decodedLog.args.id.toString(); // Or .tokenId depending on event signature
+        }
+         console.log("Detected Token ID:", mintedTokenId);
+
+
+        // --- Inform Backend ---
+        await fetch(`/mint/record-mint/${mintData.creationId}`, { // Assuming creationId is in mintData
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+                 transactionHash: receipt.transactionHash,
+                 tokenId: mintedTokenId,
+                 contractAddress: mintData.targetContractAddress
+             })
+         });
+
+        alert(`NFT Minted Successfully! Token ID: ${mintedTokenId || 'N/A'}. Tx: ${receipt.transactionHash}`);
+        // Redirect or update UI
+        window.location.href = '/dashboard'; // Example redirect
+
+
+    } catch (error) {
+        console.error("Minting failed:", error);
+        alert(`Minting failed: ${error.message}`);
+        mintButton.disabled = false;
+        mintButton.textContent = 'Mint Now';
+    }
+}
+
+
+// --- Initial Load & Event Listeners ---
+let mintData = null; // Global or scoped variable to hold fetched mint data
+
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Load Mint Data for the confirmation page ---
+    const mintDataElement = document.getElementById('mint-data'); // Assuming JSON in script tag
+    if (mintDataElement) {
+        try {
+            mintData = JSON.parse(mintDataElement.textContent);
+        } catch(e) { console.error("Failed to parse mint data");}
+    }
+
+    // --- Add listener to mint button ---
+    if (mintButton) {
+        mintButton.addEventListener('click', handleMint);
+    }
+
+    // --- Start Gas Polling ---
+    if (gasInfoElement) {
+        fetchGasPrice(); // Initial fetch
+        setInterval(fetchGasPrice, 20000); // Poll every 20 seconds
+    }
+});
+
+
+KEY NEXT STEPS
+
+
+Security: THIS IS PARAMOUNT. Sanitize ALL inputs (SQL injection, XSS). Validate addresses, percentages. Protect against CSRF. Ensure user authorization (users can only edit/mint their own drafts). Secure private keys/API keys using environment variables and secure practices. Never store private keys in code.
+Error Handling: Add comprehensive try-catch blocks, user-friendly error messages, and logging.
+Zora Integration Details: The exact functions (mintWithRewards, fee calculation, split contract interaction) and parameters depend heavily on the specific Zora contracts (ERC1155Creator version, ProtocolRewards, SplitMain) deployed on your target chain. Use the Zora SDK where possible to simplify this. Get correct ABIs.
+Temporary File Storage: Decide how to handle uploaded files before they go to IPFS (e.g., multer disk storage with cleanup, memory storage for small files, cloud storage like S3).
+Frontend Framework: Using a framework like React, Vue, or Svelte would make managing the complex state of the minting form (splits, commissions, previews, gas prices) much easier than vanilla JS/EJS.
+Gas Estimation: The gas limit estimation in the frontend is a rough placeholder. Accurately estimating the gas limit for a specific transaction requires more sophisticated simulation or using library estimates (contract.estimateGas.functionName(...)).
+Database Indexing: Add indexes to MongoDB fields that are frequently queried (e.g., userId, status).
+User Experience: Improve UI feedback, loading states, progress indicators.
+Testing: Write unit tests, integration tests, and perform extensive testing on testnets (Goerli, Sepolia, Base Goerli, etc.).
+
+
+
+
