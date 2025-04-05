@@ -1,0 +1,276 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1.0")
+    title= title // Dynamic Title
+    // Load Tailwind CSS via CDN
+    script(src="https://cdn.tailwindcss.com?plugins=forms")
+    style.
+      /* Simple style for the remove button */
+      .remove-split-btn {
+          cursor: pointer;
+          color: red;
+          font-weight: bold;
+          margin-left: 8px;
+      }
+      /* Hide the template row */
+      #split-template {
+          display: none;
+      }
+  body.bg-gray-100.font-sans.leading-normal.tracking-normal
+
+    div.container.mx-auto.p-8
+      h1.text-3xl.font-bold.mb-6.text-gray-800= title
+
+      // Display Flash Messages (Example)
+      if locals.error_msg && locals.error_msg.length > 0
+        div.bg-red-100.border.border-red-400.text-red-700.px-4.py-3.rounded.relative.mb-4(role="alert")
+          strong.font-bold Error!
+          span.block.sm:inline= locals.error_msg
+      if locals.success_msg && locals.success_msg.length > 0
+        div.bg-green-100.border.border-green-400.text-green-700.px-4.py-3.rounded.relative.mb-4(role="alert")
+          strong.font-bold Success!
+          span.block.sm:inline= locals.success_msg
+      // Display Validation Errors (if passed from controller)
+      if locals.errors && locals.errors.length > 0
+        div.bg-red-100.border.border-red-400.text-red-700.px-4.py-3.rounded.relative.mb-4(role="alert")
+          strong.font-bold Validation Errors:
+          ul
+            each error in locals.errors
+              li - #{error.msg || error}
+
+      // Main Form
+      // Note: Pug automatically determines action based on variable interpolation
+      - const formAction = draft ? `/mint/drafts/${draft._id}?_method=PUT` : '/mint/drafts'
+      form#creation-form.bg-white.shadow-md.rounded-lg.p-8(action=formAction, method="POST", enctype="multipart/form-data")
+
+        // Basic Info Section
+        div.mb-6
+          label.block.text-gray-700.text-sm.font-bold.mb-2(for="title") Title:
+          input#title.shadow.appearance-none.border.rounded.w-full.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline(
+            type="text",
+            name="title",
+            required,
+            value=draft ? draft.title : ''
+          )
+
+        div.mb-6
+          label.block.text-gray-700.text-sm.font-bold.mb-2(for="description") Description:
+          textarea#description.shadow.appearance-none.border.rounded.w-full.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline(
+            name="description",
+            rows="4"
+          )= draft ? draft.description : ''
+
+        div.mb-6
+          label.block.text-gray-700.text-sm.font-bold.mb-2(for="tags") Tags (comma-separated):
+          input#tags.shadow.appearance-none.border.rounded.w-full.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline(
+            type="text",
+            name="tags",
+            value=draft && draft.tags ? draft.tags.join(', ') : ''
+          )
+
+        // File Upload Section
+        div.mb-6
+          label.block.text-gray-700.text-sm.font-bold.mb-2(for="nftFile")= draft && draft.originalFileName ? 'Replace File:' : 'Upload File:'
+          input#nftFile.block.w-full.text-sm.text-gray-500.file:mr-4.file:py-2.file:px-4.file:rounded-full.file:border-0.file:text-sm.file:font-semibold.file:bg-blue-50.file:text-blue-700.hover:file:bg-blue-100(
+            type="file",
+            name="nftFile",
+            accept="image/*,video/*,audio/*,model/*"
+            // Dynamically set required attribute using Pug logic or client-side JS
+            required= !draft // Set required if 'draft' is null/falsy
+          )
+          if draft && draft.originalFileName
+            p.text-sm.text-gray-600.mt-2 Current file: #{draft.originalFileName} (#{(draft.fileSizeBytes / 1024).toFixed(2)} KB)
+
+        hr.my-6
+
+        // Creator Splits Section
+        h3.text-xl.font-semibold.mb-4.text-gray-800 Creator Revenue Splits
+        p.text-sm.text-gray-600.mb-4 Define wallet addresses and percentage shares for collaborators. Total must equal 100% if multiple splits are added.
+        div#creator-splits-container.space-y-3.mb-4
+          if draft && draft.creatorSplits && draft.creatorSplits.length > 0
+            each split, index in draft.creatorSplits
+              div.flex.items-center.space-x-2.split-row
+                input.flex-grow.shadow.appearance-none.border.rounded.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline.split-address(
+                  type="text",
+                  name=`split_address_${index}`,
+                  placeholder="Wallet Address (0x...)",
+                  required,
+                  value=split.walletAddress
+                )
+                input.w-24.shadow.appearance-none.border.rounded.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline.split-percentage(
+                  type="number",
+                  name=`split_percentage_${index}`,
+                  placeholder="%",
+                  min="0.01", max="100", step="0.01",
+                  required,
+                  value=split.sharePercentage
+                )
+                span.remove-split-btn(onclick="removeSplitRow(this)") ✖
+          else
+            p#no-splits-yet.text-gray-500.italic No splits defined yet. Add collaborators below.
+
+        button#add-split-btn.bg-green-500.hover:bg-green-700.text-white.font-bold.py-2.px-4.rounded.focus:outline-none.focus:shadow-outline.text-sm(type="button")
+          | + Add Collaborator Split
+        // Hidden input to store serialized split data
+        input#creatorSplitsInput(type="hidden", name="creatorSplits")
+
+        hr.my-6
+
+        // Seller Commission Section
+        h3.text-xl.font-semibold.mb-4.text-gray-800 Seller Commission (Optional)
+        p.text-sm.text-gray-600.mb-4 Set an address to receive a commission on mint (via Zora mint referral).
+        div.flex.items-center.space-x-2.mb-4
+          label.block.text-gray-700.text-sm.font-bold.w-32(for="referrerAddress") Referrer Address:
+          input#referrerAddress.flex-grow.shadow.appearance-none.border.rounded.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline(
+            type="text",
+            name="referrerAddress",
+            placeholder="Wallet Address (0x...)",
+            value=draft && draft.sellerCommission ? draft.sellerCommission.referrerAddress : ''
+          )
+
+        // Submission Buttons
+        div.flex.items-center.justify-between.mt-8
+          button.bg-blue-500.hover:bg-blue-700.text-white.font-bold.py-2.px-4.rounded.focus:outline-none.focus:shadow-outline(type="submit")= draft ? 'Update Draft' : 'Save Draft'
+          if draft && (draft.status === 'draft' || draft.status === 'error')
+            button#prepare-mint-btn.bg-purple-500.hover:bg-purple-700.text-white.font-bold.py-2.px-4.rounded.focus:outline-none.focus:shadow-outline(type="button", data-draft-id=draft._id)
+              | Prepare for Minting...
+
+    // Template for new split rows (hidden)
+    div#split-template.flex.items-center.space-x-2.split-row
+      input.flex-grow.shadow.appearance-none.border.rounded.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline.split-address(type="text", placeholder="Wallet Address (0x...)", required)
+      input.w-24.shadow.appearance-none.border.rounded.py-2.px-3.text-gray-700.leading-tight.focus:outline-none.focus:shadow-outline.split-percentage(type="number", placeholder="%", min="0.01", max="100", step="0.01", required)
+      span.remove-split-btn(onclick="removeSplitRow(this)") ✖
+
+    // JavaScript for dynamic splits and prepare mint button
+    script.
+      const addSplitBtn = document.getElementById('add-split-btn');
+      const splitsContainer = document.getElementById('creator-splits-container');
+      const splitTemplate = document.getElementById('split-template');
+      const form = document.getElementById('creation-form');
+      const creatorSplitsInput = document.getElementById('creatorSplitsInput');
+      const noSplitsYet = document.getElementById('no-splits-yet');
+      const prepareMintBtn = document.getElementById('prepare-mint-btn');
+
+      addSplitBtn.addEventListener('click', () => {
+          if (noSplitsYet) {
+              noSplitsYet.style.display = 'none'; // Hide the 'no splits' message
+          }
+          const newRow = splitTemplate.cloneNode(true);
+          newRow.removeAttribute('id'); // Remove ID from clone
+          newRow.style.display = 'flex'; // Make it visible
+          // Clear input values in the new row
+          newRow.querySelector('.split-address').value = '';
+          newRow.querySelector('.split-percentage').value = '';
+          splitsContainer.appendChild(newRow);
+      });
+
+      function removeSplitRow(buttonElement) {
+          buttonElement.closest('.split-row').remove();
+           if (splitsContainer.querySelectorAll('.split-row:not(#split-template)').length === 0 && noSplitsYet) { // Check only visible rows
+              noSplitsYet.style.display = 'block'; // Show 'no splits' message if all removed
+          }
+      }
+
+      // Before submitting the form, gather split data and put into hidden input
+      form.addEventListener('submit', (event) => {
+          const splitRows = splitsContainer.querySelectorAll('.split-row:not(#split-template)'); // Select only visible rows
+          const splitsData = [];
+          let totalPercentage = 0;
+          let isValid = true;
+
+          splitRows.forEach(row => {
+              const addressInput = row.querySelector('.split-address');
+              const percentageInput = row.querySelector('.split-percentage');
+              const address = addressInput.value.trim();
+              const percentage = parseFloat(percentageInput.value);
+
+              // Reset borders first
+              addressInput.style.borderColor = '';
+              percentageInput.style.borderColor = '';
+
+              let rowValid = true;
+              if (!address) {
+                  isValid = false;
+                  rowValid = false;
+                  addressInput.style.borderColor = 'red';
+              } else if (!/^0x[a-fA-F0-9]{40}$/.test(address)) { // Basic address validation
+                  isValid = false;
+                  rowValid = false;
+                  addressInput.style.borderColor = 'red';
+                  // Consider adding a more specific alert later if overall validation fails
+              }
+
+              if (!percentage || percentage <= 0 || percentage > 100) {
+                  isValid = false;
+                  rowValid = false;
+                  percentageInput.style.borderColor = 'red';
+              }
+
+              if (rowValid) {
+                  splitsData.push({
+                      walletAddress: address,
+                      sharePercentage: percentage
+                  });
+                  totalPercentage += percentage;
+              }
+          });
+
+          // Validate total percentage only if there are splits defined
+          if (splitsData.length > 0 && Math.abs(totalPercentage - 100) > 0.001) {
+              isValid = false;
+              alert(`Split percentages must add up to 100%. Current total: ${totalPercentage.toFixed(2)}%`);
+              // Optionally highlight all percentage inputs
+               splitsContainer.querySelectorAll('.split-percentage').forEach(el => el.style.borderColor = 'red');
+          }
+
+          if (!isValid) {
+              event.preventDefault(); // Stop form submission if validation fails
+              alert('Please fix the errors highlighted in red in the creator splits section.');
+              return;
+          }
+
+          // If valid, serialize and set the hidden input value
+          creatorSplitsInput.value = JSON.stringify(splitsData);
+          // Allow form submission to proceed
+      });
+
+       // Handle "Prepare for Minting" button click
+      if (prepareMintBtn) {
+          prepareMintBtn.addEventListener('click', async (e) => {
+              e.preventDefault(); // Prevent default button behavior
+              const draftId = prepareMintBtn.dataset.draftId;
+              prepareMintBtn.disabled = true;
+              prepareMintBtn.textContent = 'Preparing...';
+              // Optionally show a loading indicator
+
+              try {
+                  // Send request to backend to prepare mint (IPFS uploads etc.)
+                  const response = await fetch(`/mint/prepare-mint/${draftId}`, {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          // Add CSRF token header if needed (fetch from meta tag or cookie)
+                      }
+                  });
+
+                  const result = await response.json();
+
+                  if (response.ok && result.success) {
+                      // Redirect to the confirmation page
+                      window.location.href = `/mint/confirm-mint/${draftId}`;
+                  } else {
+                      alert(`Error preparing mint: ${result.message || 'Unknown error'}`);
+                      prepareMintBtn.disabled = false;
+                      prepareMintBtn.textContent = 'Prepare for Minting...';
+                  }
+              } catch (error) {
+                  console.error('Error calling prepare-mint:', error);
+                  alert(`Network error or server issue preparing mint: ${error.message}`);
+                  prepareMintBtn.disabled = false;
+                  prepareMintBtn.textContent = 'Prepare for Minting...';
+              }
+          });
+      }
+
